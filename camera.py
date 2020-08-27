@@ -25,10 +25,11 @@ PAGE = """\
 
 
 class StreamingOutput(object):
-    def __init__(self):
+    def __init__(self, rasp_camera):
         self.frame = None
         self.buffer = io.BytesIO()
         self.condition = Condition()
+        self.rasp_camera = rasp_camera
 
     def write(self, buf):
         if buf.startswith(b'\xff\xd8'):
@@ -40,6 +41,12 @@ class StreamingOutput(object):
                 self.condition.notify_all()
             self.buffer.seek(0)
         return self.buffer.write(buf)
+
+    def take_still(self):
+        n = datetime.now()
+        t = n.timetuple()
+        c = str(t[3]) + str(t[4])
+        self.rasp_camera.capture('/home/pi/Documents/scope/image%s.jpg' % c)
 
 
 class StreamingHandler(server.BaseHTTPRequestHandler):
@@ -58,11 +65,6 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
         elif self.path == '/snap.html':
             self.send_response(301)
             self.send_header('Location', '/index.html')
-            pic_camera = picamera.PiCamera()
-            n = datetime.now()
-            t = n.timetuple()
-            c = str(t[3]) + str(t[4])
-            pic_camera.capture('/home/pi/Documents/scope/image%s.jpg' % c)
             self.end_headers()
         elif self.path == '/stream.mjpg':
             self.send_response(200)
@@ -71,11 +73,15 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             self.send_header('Pragma', 'no-cache')
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
             self.end_headers()
+            minute = -1
             try:
                 while True:
                     with output.condition:
                         output.condition.wait()
                         frame = output.frame
+                    if minute != datetime.now().min:
+                        minute = datetime.now().min
+                        output.take_still()
                     self.wfile.write(b'--FRAME\r\n')
                     self.send_header('Content-Type', 'image/jpeg')
                     self.send_header('Content-Length', len(frame))
