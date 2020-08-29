@@ -18,7 +18,7 @@ PAGE = """\
 </head>
 <body>
 <center><h1>Raspberry Pi - Surveillance Camera</h1></center>
-<center><img src="stream.mjpg" width="640" height="480"></center>
+<center><img src="stream.mjpg" width="1920" height="1080"></center>
 </body>
 </html>
 """
@@ -45,7 +45,7 @@ class StreamingOutput(object):
     def take_still(self):
         n = datetime.now()
         t = n.timetuple()
-        c = str(t[3]) + str(t[4])
+        c = str(t[3]) + str(t[4]) + str(t[5])
         self.rasp_camera.capture('/home/pi/Documents/scope/image%s.jpg' % c)
 
 
@@ -73,14 +73,14 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             self.send_header('Pragma', 'no-cache')
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
             self.end_headers()
-            minute = -1
+            second = -1
             try:
                 while True:
                     with output.condition:
                         output.condition.wait()
                         frame = output.frame
-                    if minute != datetime.now().min:
-                        minute = datetime.now().min
+                    if second != datetime.now().second:
+                        second = datetime.now().second
                         output.take_still()
                     self.wfile.write(b'--FRAME\r\n')
                     self.send_header('Content-Type', 'image/jpeg')
@@ -102,7 +102,7 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     daemon_threads = True
 
 
-with picamera.PiCamera(resolution='640x480', framerate=24) as camera:
+with picamera.PiCamera(resolution='1920x1080', framerate=30) as camera:
     output = StreamingOutput()
     # Uncomment the next line to change your Pi's Camera rotation (in degrees)
     # camera.rotation = 90
